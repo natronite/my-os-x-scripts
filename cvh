@@ -1,0 +1,105 @@
+#!/bin/bash
+
+### Set default parameters
+domain=$1
+rootDir=$2
+email='webmaster@localhost'
+sitesAvailable='/etc/apache2/sites-available/'
+fileName=${sitesAvailable}${domain}.conf
+
+#
+# Test for correct argument count, then display the
+# instructions
+#
+if [[ ${domain} == "-h" ]]; then
+
+echo "
+usage: $0 [domain] [rootDir]
+example: $0 example /srv/www/example
+
+domain: will create vhost for [domain].localhost
+rootDir: relative or absolute, must exist
+
+This script will create a .conf file with the necessary configuration for a virtual host.
+The file wille be places in /private/etc/apache2/sites-available and enabled with a2ensite
+";
+	exit 1;
+fi
+
+#
+# Require root password
+#
+if [[ $UID != 0 ]]; then
+    echo "Requesting permissions...";
+    sudo "$0" "$@";
+    exit $?;
+fi;
+
+while [ "$domain" == "" ]
+do
+	echo -e $"Please provide domain: "
+	read domain
+done
+
+### check if domain already exists
+if [ -e ${fileName} ]; then
+  echo -e $"This domain already exists.\nPlease Try Another one"
+  exit;
+fi
+
+workingDir=`pwd`;
+
+while [ "$rootDir" == "" ]
+do
+	echo -e $"Please provide a valid root directory: "
+	read rootDir
+  if [ ! -d "$rootDir" ]; then
+    rootDir=''
+  else
+    cd $rootDir
+    rootDir=`pwd`
+  fi
+  cd ${workingDir}
+done
+
+		### create virtual host rules file
+		if ! echo "
+    <VirtualHost *:80>
+    ServerName $domain.localhost
+    Redirect / http://www.$domain.localhost
+    </VirtualHost>
+
+    <VirtualHost *:80>
+        ServerAdmin $email
+        DocumentRoot \"$rootDir\"
+        ServerName www.$domain.localhost
+        ServerAlias *.$domain.localhost
+        ErrorLog \"/private/var/log/apache2/$domain.localhost-error_log\"
+        CustomLog \"/private/var/log/apache2/$domain.localhost-access_log\" common
+
+        ProxyPassMatch ^/(.*\.php(/.*)?)$ fcgi://127.0.0.1:9070/Volumes/Workspace/repositories/natronite/natronite.com/public/\$1
+        SetEnvIf Authorization \"(.*)\" HTTP_AUTHORIZATION=\$1
+
+        <Directory \"$rootDir\">
+            CGIPassAuth On
+            AllowOverride ALL
+            Require all granted
+        </Directory>
+    </VirtualHost>
+    " > ${fileName}
+		then
+			echo -e $"There is an ERROR creating $domain file"
+			exit;
+		else
+			echo -e $"\nNew Virtual Host Created\n"
+		fi
+
+		### enable website
+		a2ensite $domain
+
+		### restart Apache
+		apachectl restart
+
+		### show the finished message
+		echo -e $"Complete! \nYou now have a new Virtual Host \nYour new host is: http://$domain.localhost \nAnd its located at $rootDir"
+		exit;

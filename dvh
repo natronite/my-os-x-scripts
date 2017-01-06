@@ -1,0 +1,62 @@
+#!/bin/bash
+
+### Set default parameters
+domain=$1
+sitesEnabled='/etc/apache2/sites-enabled/'
+sitesAvailable='/etc/apache2/sites-available/'
+fileNameAvailable=${sitesAvailable}${domain}.conf
+fileNameEnabled=${sitesEnabled}${domain}.conf
+
+#
+# Test for correct argument count, then display the
+# instructions
+#
+if [[ ${domain} == "-h" ]]; then
+
+echo "
+usage: $0 [domain]
+example: $0 example
+
+domain: will remove vhost for [domain].localhost
+
+This script will disable the vhost with a2dsite
+and delete the corresponding config file.
+";
+	exit 1;
+fi
+
+#
+# Require root password
+#
+if [[ $UID != 0 ]]; then
+    echo "Requesting permissions...";
+    sudo "$0" "$@";
+    exit $?;
+fi;
+
+while [ "$domain" == "" ]
+do
+	echo -e $"Please provide domain: "
+	read domain
+done
+
+### check if website enabled
+if [ -e ${fileNameEnabled} ]; then
+	echo -e "Disabling vhost"
+	a2dsite $domain
+fi
+
+if [ -e ${fileNameAvailable} ]; then
+	echo -e "Removing configuration from ${sitesAvailable}"
+	rm ${fileNameAvailable}
+else
+	echo -e $"No configuration found for $domain.localhost"
+	exit;
+fi
+
+		### restart Apache
+		apachectl restart
+
+		### show the finished message
+		echo -e $"Complete! \nRemoved Virtual Host $domain.localhost"
+		exit;
