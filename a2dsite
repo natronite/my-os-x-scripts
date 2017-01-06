@@ -1,0 +1,85 @@
+#!/bin/bash
+#########################################
+#
+# Adapted from https://gist.github.com/wturnerharris/27211cfec94831a9a2a22c594fec857e
+#
+# This script disables apache virtual hosts
+# by removing symlinks in
+#
+# /private/etc/apache2/sites-enabled
+#
+# that point to vhost conf files in
+#
+# /private/etc/apache2/sites-available
+#
+#
+# NOTE: The analogue of this script is
+#
+# a2ensite
+#
+#########################################
+
+#
+# Test for no arguments, then display the
+# instructions
+#
+if [ $# -eq 0 ]; then
+
+echo "
+usage: a2dsite [config file name]
+example: a2dsite 000-default
+
+The symbolic link (if it exists) that points to the Vhost configuration in the
+sites-available folder will be removed.
+The following folders must exist:
+/private/etc/apache2/sites-available
+/private/etc/apache2/sites-enabled
+";
+	exit 1;
+fi
+
+#
+# Require root password
+#
+if [[ $UID != 0 ]]; then
+    echo "Requesting permissions...";
+    sudo "$0" "$@";
+    exit $?;
+fi;
+
+#
+#
+#
+conf=$1;
+
+#
+# Source folder for symlink vhost files
+#
+dst="/private/etc/apache2/sites-enabled/";
+
+#
+# Test for necessary conf folders
+#
+! test -d $dst && { echo "The required folder does not exist: $dst"; exit 1; }
+
+#
+# Set full path to config files
+#
+dest_conf_file=$dst$conf".conf";
+
+#
+# Is this file already disabled
+#
+! test -f $dest_conf_file && { echo "$conf is already disabled"; exit 1; }
+
+#
+# Remove a symbolic link to the source config file
+#
+
+if rm $dest_conf_file; then
+	echo "The site $conf has been disabled.";
+  sudo apachectl restart;
+	exit 0;
+fi;
+
+exit 1;
